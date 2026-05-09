@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>昆虫识别检测系统 - YOLOv11</title>
+  <style>
+    :root {
+      --bg: #eef3fa;
+      --bg-deep: #0f223c;
+      --card: #f8fbff;
+      --text: #1b2b41;
+      --muted: #5a6e87;
+      --primary: #1e4f8f;
+      --secondary: #2e6fa7;
+      --accent: #2d8fa3;
+      --line: #d7e2f0;
+      --ok: #1f8a70;
+      --warn: #bf4b3f;
+      --shadow: 0 12px 30px rgba(15, 34, 60, 0.08);
+      --radius: 14px;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      color: var(--text);
+      background: linear-gradient(165deg, #f3f7fd 0%, #eaf0f9 45%, #e7eef8 100%);
+    }
+
+    .container { width: min(1200px, 92vw); margin: 0 auto; }
+
+    .top-nav {
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      backdrop-filter: blur(8px);
+      background: rgba(12, 33, 58, 0.8);
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+      box-shadow: 0 8px 20px rgba(8, 23, 44, 0.25);
+    }
+    .nav-inner {
+      height: 68px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .logo { color: #f5fbff; font-size: 1.2rem; font-weight: 600; letter-spacing: 0.5px; }
+    .menu { display: flex; gap: 1.1rem; }
+    .menu a {
+      color: #d8e6f8;
+      text-decoration: none;
+      font-size: 0.95rem;
+      padding: 8px 10px;
+      border-radius: 8px;
+      transition: all .25s;
+    }
+    .menu a:hover { background: rgba(255,255,255,.12); color: white; }
+
+    .hero {
+      margin-top: 20px;
+      padding: 64px 42px;
+      border-radius: 18px;
+      color: #eef6ff;
+      position: relative;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at 18% 20%, rgba(82, 173, 209, 0.26), transparent 28%),
+        radial-gradient(circle at 76% 22%, rgba(65, 126, 221, 0.25), transparent 35%),
+        linear-gradient(140deg, #122a4a 0%, #163760 46%, #1c4879 100%);
+      box-shadow: var(--shadow);
+    }
+    .hero::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(255,255,255,.06) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,.06) 1px, transparent 1px);
+      background-size: 30px 30px;
+      opacity: .4;
+      pointer-events: none;
+    }
+    .hero h1 { margin: 0 0 14px; font-size: clamp(1.8rem, 3vw, 2.5rem); position: relative; z-index: 1; }
+    .hero p { margin: 0; color: #d7e6fa; max-width: 780px; line-height: 1.8; position: relative; z-index: 1; }
+    .hero-actions { margin-top: 28px; display: flex; gap: 14px; flex-wrap: wrap; position: relative; z-index: 1; }
+
+    .btn {
+      border: none;
+      border-radius: 10px;
+      padding: 11px 18px;
+      cursor: pointer;
+      font-size: 0.95rem;
+      font-weight: 600;
+      transition: .2s;
+    }
+    .btn:disabled { opacity: 0.7; cursor: not-allowed; }
+    .btn-primary { background: #2e74ba; color: #fff; }
+    .btn-primary:hover { background: #1f639f; }
+    .btn-light { background: rgba(233, 243, 255, 0.16); color: #f2f8ff; border: 1px solid rgba(255,255,255,.28); }
+    .btn-light:hover { background: rgba(233, 243, 255, 0.24); }
+    .btn-ghost { background: #e7eef8; color: #26486b; }
+
+    .section { margin-top: 28px; }
+    .section-title { margin: 0 0 14px; font-size: 1.2rem; color: #234164; }
+
+    .feature-grid {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 14px;
+    }
+    .feature-card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 18px 14px;
+      transition: transform .22s, box-shadow .22s;
+    }
+    .feature-card:hover { transform: translateY(-6px); box-shadow: 0 16px 34px rgba(31, 62, 94, 0.16); }
+    .feature-icon {
+      width: 38px; height: 38px;
+      border-radius: 10px;
+      display: grid; place-items: center;
+      background: #e3eefb; color: #245f91;
+      font-weight: 700;
+      margin-bottom: 10px;
+    }
+    .feature-card h4 { margin: 0 0 6px; font-size: 1rem; }
+    .feature-card p { margin: 0; font-size: .9rem; color: var(--muted); line-height: 1.6; }
+
+    .workspace {
+      margin-top: 22px;
+      display: grid;
+      grid-template-columns: 1.3fr .9fr;
+      gap: 16px;
+    }
+    .panel {
+      background: #fafdff;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 18px;
+    }
+
+    .tabs { display: flex; gap: 8px; margin-bottom: 14px; }
+    .tab {
+      border: 1px solid #c8d8eb;
+      background: #edf4fc;
+      color: #2b4f75;
+      padding: 8px 12px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: .92rem;
+    }
+    .tab.active { background: #2d6297; color: #fff; border-color: #2d6297; }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
+    .upload {
+      border: 2px dashed #aec4dd;
+      border-radius: 12px;
+      background: #f3f8ff;
+      padding: 18px;
+      text-align: center;
+      margin-bottom: 12px;
+    }
+    input[type="file"] { width: 100%; max-width: 360px; }
+
+    .preview-box {
+      width: 100%;
+      min-height: 230px;
+      border-radius: 12px;
+      border: 1px solid #cfdced;
+      background: #eaf1fa;
+      display: grid;
+      place-items: center;
+      overflow: hidden;
+      color: #607a99;
+    }
+    .preview-box img, .preview-box video {
+      max-width: 100%;
+      max-height: 340px;
+      object-fit: contain;
+      display: block;
+    }
+
+    .btn-row { margin-top: 12px; display: flex; gap: 10px; flex-wrap: wrap; }
+
+    .result-media {
+      min-height: 220px;
+      border: 1px solid #cfe0f3;
+      border-radius: 12px;
+      background: #edf4fc;
+      display: grid;
+      place-items: center;
+      overflow: hidden;
+      margin-bottom: 12px;
+      color: #6380a2;
+    }
+    .result-media img, .result-media video { max-width: 100%; max-height: 300px; object-fit: contain; }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+    .stat-item {
+      border-radius: 10px;
+      background: #eef4fc;
+      border: 1px solid #d6e2f1;
+      padding: 10px;
+      font-size: .9rem;
+    }
+    .stat-item b { color: #1f3f62; }
+
+    .result-list {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      border: 1px solid #d6e3f2;
+      border-radius: 10px;
+      background: #fbfdff;
+      max-height: 180px;
+      overflow: auto;
+    }
+    .result-list li {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 10px 12px;
+      border-bottom: 1px solid #edf2f8;
+      font-size: .9rem;
+    }
+    .result-list li:last-child { border-bottom: none; }
+
+    .feedback {
+      margin-top: 10px;
+      min-height: 22px;
+      color: var(--muted);
+      font-size: .92rem;
+    }
+    .feedback.error { color: var(--warn); }
+    .feedback.success { color: var(--ok); }
+
+    .overview {
+      margin-top: 18px;
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0,1fr));
+      gap: 10px;
+    }
+    .overview-card {
+      background: #f8fbff;
+      border: 1px solid #d5e2f0;
+      border-radius: 12px;
+      padding: 12px;
+      box-shadow: var(--shadow);
+    }
+    .overview-card .label { color: #6480a1; font-size: .87rem; }
+    .overview-card .value { margin-top: 6px; font-weight: 600; color: #1c3f67; }
+
+    footer {
+      margin-top: 28px;
+      background: #11253f;
+      color: #d4e3f3;
+      text-align: center;
+      padding: 16px;
+      font-size: .93rem;
+    }
+
+    @media (max-width: 1080px) {
+      .feature-grid { grid-template-columns: repeat(3, minmax(0,1fr)); }
+      .workspace { grid-template-columns: 1fr; }
+      .overview { grid-template-columns: repeat(2, minmax(0,1fr)); }
+    }
+    @media (max-width: 720px) {
+      .menu { display: none; }
+      .hero { padding: 42px 22px; }
+      .feature-grid { grid-template-columns: repeat(1, minmax(0,1fr)); }
+      .overview { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <nav class="top-nav">
+    <div class="container nav-inner">
+      <div class="logo">昆虫识别检测系统</div>
+      <div class="menu">
+        <a href="#home">首页</a>
+        <a href="#detect-panel">图片检测</a>
+        <a href="#detect-panel">视频检测</a>
+        <a href="#detect-panel">实时检测</a>
+        <a href="#result-panel">结果记录</a>
+      </div>
+    </div>
+  </nav>
+
+  <main class="container">
+    <section id="home" class="hero">
+      <h1>基于 YOLOv11 的昆虫识别检测系统</h1>
+      <p>系统支持图片、视频与摄像头实时输入，能够自动完成昆虫目标识别、位置定位、置信度计算，并可将检测结果进行可视化展示和保存，适用于本科毕业设计系统演示与实验结果展示。</p>
+      <div class="hero-actions">
+        <button class="btn btn-primary" id="go-image">开始图片检测</button>
+        <button class="btn btn-light" id="go-camera">进入实时检测</button>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">核心功能模块</h2>
+      <div class="feature-grid">
+        <article class="feature-card"><div class="feature-icon">图</div><h4>图片检测</h4><p>上传昆虫图片并调用 YOLOv11 进行检测与识别。</p></article>
+        <article class="feature-card"><div class="feature-icon">视</div><h4>视频检测</h4><p>选择视频文件后执行逐帧目标检测并输出处理结果。</p></article>
+        <article class="feature-card"><div class="feature-icon">实</div><h4>摄像头检测</h4><p>调用本地摄像头进行实时昆虫目标识别展示。</p></article>
+        <article class="feature-card"><div class="feature-icon">果</div><h4>结果显示</h4><p>展示检测图像、类别名称、置信度及检测框信息。</p></article>
+        <article class="feature-card"><div class="feature-icon">存</div><h4>结果保存</h4><p>支持将检测结果与记录发送至后端进行持久化保存。</p></article>
+      </div>
+    </section>
+
+    <section id="detect-panel" class="workspace">
+      <div class="panel">
+        <h2 class="section-title">检测操作区域</h2>
+        <div class="tabs">
+          <button class="tab active" data-tab="image-tab">图片检测</button>
+          <button class="tab" data-tab="video-tab">视频检测</button>
+          <button class="tab" data-tab="camera-tab">摄像头检测</button>
+        </div>
+
+        <div id="image-tab" class="tab-content active">
+          <div class="upload">
+            <input id="image-input" type="file" accept="image/*" />
+          </div>
+          <div class="preview-box" id="image-preview">暂无图片预览</div>
+          <div class="btn-row">
+            <button class="btn btn-primary" id="detect-image-btn">开始检测</button>
+            <button class="btn btn-ghost" id="clear-image-btn">清空结果</button>
+          </div>
+        </div>
+
+        <div id="video-tab" class="tab-content">
+          <div class="upload">
+            <input id="video-input" type="file" accept="video/*" />
+          </div>
+          <div class="preview-box" id="video-preview">暂无视频预览</div>
+          <div class="btn-row">
+            <button class="btn btn-primary" id="detect-video-btn">开始视频检测</button>
+          </div>
+        </div>
+
+        <div id="camera-tab" class="tab-content">
+          <div class="preview-box"><video id="camera-video" autoplay playsinline muted></video></div>
+          <div class="btn-row">
+            <button class="btn btn-primary" id="open-camera-btn">打开摄像头</button>
+            <button class="btn btn-primary" id="detect-camera-btn">开始实时检测</button>
+            <button class="btn btn-ghost" id="close-camera-btn">关闭摄像头</button>
+          </div>
+        </div>
+      </div>
+
+      <aside id="result-panel" class="panel">
+        <h2 class="section-title">检测结果展示</h2>
+        <div class="result-media" id="result-media">暂无检测结果</div>
+        <div class="stats">
+          <div class="stat-item"><b>检测目标数量：</b><span id="result-count">0</span></div>
+          <div class="stat-item"><b>检测耗时：</b><span id="result-time">-</span></div>
+          <div class="stat-item"><b>检测类型：</b><span id="result-type">-</span></div>
+          <div class="stat-item"><b>状态：</b><span id="result-status">待检测</span></div>
+        </div>
+        <ul class="result-list" id="result-list">
+          <li><span>暂无检测结果</span><span>--</span></li>
+        </ul>
+        <div class="btn-row">
+          <button class="btn btn-primary" id="save-result-btn">保存结果</button>
+        </div>
+        <div class="feedback" id="feedback-msg"></div>
+      </aside>
+    </section>
+
+    <section class="overview">
+      <div class="overview-card"><div class="label">检测模型</div><div class="value">YOLOv11</div></div>
+      <div class="overview-card"><div class="label">检测类别</div><div class="value">10 类昆虫</div></div>
+      <div class="overview-card"><div class="label">支持输入</div><div class="value">图片 / 视频 / 摄像头</div></div>
+      <div class="overview-card"><div class="label">输出结果</div><div class="value">类别、置信度、边界框</div></div>
+    </section>
+  </main>
+
+  <footer>基于YOLO的昆虫识别检测系统设计与实现</footer>
+
+  <script>
+    // FastAPI 跨域提醒：后端需配置 CORS，否则浏览器可能拦截请求。
+    const API_BASE_URL = "http://127.0.0.1:8000";
+
+    const tabs = document.querySelectorAll('.tab');
+    const tabContents = document.querySelectorAll('.tab-content');
+    const imageInput = document.getElementById('image-input');
+    const videoInput = document.getElementById('video-input');
+    const imagePreview = document.getElementById('image-preview');
+    const videoPreview = document.getElementById('video-preview');
+    const resultMedia = document.getElementById('result-media');
+    const resultList = document.getElementById('result-list');
+    const resultCount = document.getElementById('result-count');
+    const resultTime = document.getElementById('result-time');
+    const resultType = document.getElementById('result-type');
+    const resultStatus = document.getElementById('result-status');
+    const feedbackMsg = document.getElementById('feedback-msg');
+
+    const detectImageBtn = document.getElementById('detect-image-btn');
+    const detectVideoBtn = document.getElementById('detect-video-btn');
+    const saveResultBtn = document.getElementById('save-result-btn');
+
+    const cameraVideo = document.getElementById('camera-video');
+    let cameraStream = null;
+    let lastResultPayload = null;
+
+    tabs.forEach(tab => {
+      tab.addEventListener('click', () => {
+        tabs.forEach(t => t.classList.remove('active'));
+        tabContents.forEach(c => c.classList.remove('active'));
+        tab.classList.add('active');
+        document.getElementById(tab.dataset.tab).classList.add('active');
+      });
+    });
+
+    document.getElementById('go-image').onclick = () => document.querySelector('[data-tab="image-tab"]').click();
+    document.getElementById('go-camera').onclick = () => document.querySelector('[data-tab="camera-tab"]').click();
+
+    imageInput.addEventListener('change', () => {
+      const file = imageInput.files[0];
+      if (!file) return;
+      const url = URL.createObjectURL(file);
+      imagePreview.innerHTML = `<img src="${url}" alt="图片预览" />`;
+      setFeedback('');
+    });
+
+    videoInput.addEventListener('change', () => {
+      const file = videoInput.files[0];
+      if (!file) return;
+      const url = URL.createObjectURL(file);
+      videoPreview.innerHTML = `<video controls src="${url}"></video>`;
+      setFeedback('');
+    });
+
+    document.getElementById('clear-image-btn').addEventListener('click', () => {
+      imageInput.value = '';
+      imagePreview.textContent = '暂无图片预览';
+      resetResultPanel();
+    });
+
+    detectImageBtn.addEventListener('click', async () => {
+      const file = imageInput.files[0];
+      if (!file) return setFeedback('请先选择图片文件。', true);
+      await runWithLoading(detectImageBtn, '检测中...', async () => {
+        const formData = new FormData();
+        formData.append('file', file);
+        const res = await fetch(`${API_BASE_URL}/api/detect/image`, { method: 'POST', body: formData });
+        if (!res.ok) throw new Error('图片检测请求失败');
+        const data = await res.json();
+        if (!data.success) throw new Error(data.message || '图片检测失败');
+        applyImageResult(data);
+      });
+    });
+
+    detectVideoBtn.addEventListener('click', async () => {
+      const file = videoInput.files[0];
+      if (!file) return setFeedback('请先选择视频文件。', true);
+      await runWithLoading(detectVideoBtn, '检测中...', async () => {
+        const formData = new FormData();
+        formData.append('file', file);
+        const res = await fetch(`${API_BASE_URL}/api/detect/video`, { method: 'POST', body: formData });
+        if (!res.ok) throw new Error('视频检测请求失败');
+        const data = await res.json();
+        if (!data.success) throw new Error(data.message || '视频检测失败');
+        applyVideoResult(data);
+      });
+    });
+
+    document.getElementById('open-camera-btn').addEventListener('click', async () => {
+      try {
+        cameraStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+        cameraVideo.srcObject = cameraStream;
+        setFeedback('摄像头已打开。', false, true);
+      } catch (e) {
+        setFeedback('无法打开摄像头，请检查权限设置。', true);
+      }
+    });
+
+    document.getElementById('detect-camera-btn').addEventListener('click', async (e) => {
+      if (!cameraStream) return setFeedback('请先打开摄像头。', true);
+      await runWithLoading(e.target, '检测中...', async () => {
+        // 预留实时检测接口：POST /api/detect/camera-frame
+        // 当前使用模拟数据展示，后续可定时抓帧发送到后端。
+        const mockData = {
+          success: true,
+          message: '实时检测模拟完成',
+          detections: [
+            { class_name: 'Ants', confidence: 0.89, bbox: [64, 72, 180, 216] },
+            { class_name: 'Wasps', confidence: 0.84, bbox: [220, 96, 316, 204] }
+          ],
+          count: 2,
+          time: '0.042s'
+        };
+        applyCameraResult(mockData);
+      });
+    });
+
+    document.getElementById('close-camera-btn').addEventListener('click', () => {
+      if (cameraStream) {
+        cameraStream.getTracks().forEach(track => track.stop());
+        cameraStream = null;
+      }
+      cameraVideo.srcObject = null;
+      setFeedback('摄像头已关闭。', false, true);
+    });
+
+    saveResultBtn.addEventListener('click', async () => {
+      if (!lastResultPayload) return setFeedback('暂无可保存的检测结果。', true);
+      await runWithLoading(saveResultBtn, '保存中...', async () => {
+        const res = await fetch(`${API_BASE_URL}/api/save/result`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(lastResultPayload)
+        });
+        if (!res.ok) throw new Error('保存请求失败');
+        const data = await res.json();
+        if (data.success === false) throw new Error(data.message || '保存失败');
+        setFeedback('检测结果保存成功。', false, true);
+      });
+    });
+
+    function applyImageResult(data) {
+      const imageUrl = normalizeStaticPath(data.result_image);
+      resultMedia.innerHTML = imageUrl ? `<img src="${imageUrl}" alt="检测结果图"/>` : '检测完成，但未返回结果图像';
+      fillResultInfo('image', data.count || 0, data.time || '-', data.detections || []);
+      lastResultPayload = {
+        file_type: 'image',
+        result_path: data.result_image || '',
+        detections: (data.detections || []).map(item => ({ class_name: item.class_name, confidence: item.confidence }))
+      };
+      setFeedback(data.message || '图片检测完成。', false, true);
+    }
+
+    function applyVideoResult(data) {
+      const videoUrl = normalizeStaticPath(data.result_video);
+      resultMedia.innerHTML = videoUrl ? `<video controls src="${videoUrl}"></video>` : '检测完成，但未返回结果视频';
+      fillResultInfo('video', data.count || 0, data.time || '-', []);
+      lastResultPayload = {
+        file_type: 'video',
+        result_path: data.result_video || '',
+        detections: []
+      };
+      setFeedback(data.message || '视频检测完成。', false, true);
+    }
+
+    function applyCameraResult(data) {
+      resultMedia.innerHTML = '<span>实时检测已执行（当前为前端模拟结果）</span>';
+      fillResultInfo('camera', data.count || 0, data.time || '-', data.detections || []);
+      lastResultPayload = {
+        file_type: 'camera',
+        result_path: '',
+        detections: (data.detections || []).map(item => ({ class_name: item.class_name, confidence: item.confidence }))
+      };
+      setFeedback(data.message || '实时检测完成。', false, true);
+    }
+
+    function fillResultInfo(type, count, time, detections) {
+      resultType.textContent = type;
+      resultCount.textContent = count;
+      resultTime.textContent = time;
+      resultStatus.textContent = '检测完成';
+
+      if (!detections.length) {
+        resultList.innerHTML = '<li><span>暂无检测结果</span><span>--</span></li>';
+        return;
+      }
+      resultList.innerHTML = detections.map((d, i) => {
+        const conf = typeof d.confidence === 'number' ? `${(d.confidence * 100).toFixed(1)}%` : d.confidence;
+        return `<li><span>${i + 1}. ${d.class_name || 'Unknown'}</span><span>${conf || '--'}</span></li>`;
+      }).join('');
+    }
+
+    function resetResultPanel() {
+      resultMedia.textContent = '暂无检测结果';
+      resultCount.textContent = '0';
+      resultTime.textContent = '-';
+      resultType.textContent = '-';
+      resultStatus.textContent = '待检测';
+      resultList.innerHTML = '<li><span>暂无检测结果</span><span>--</span></li>';
+      lastResultPayload = null;
+      setFeedback('');
+    }
+
+    async function runWithLoading(button, loadingText, fn) {
+      const oldText = button.textContent;
+      button.disabled = true;
+      button.textContent = loadingText;
+      setFeedback('');
+      try {
+        await fn();
+      } catch (err) {
+        console.error(err);
+        resultStatus.textContent = '失败';
+        setFeedback('后端服务未启动或接口请求失败。', true);
+      } finally {
+        button.disabled = false;
+        button.textContent = oldText;
+      }
+    }
+
+    function normalizeStaticPath(path) {
+      if (!path) return '';
+      if (path.startsWith('http://') || path.startsWith('https://')) return path;
+      return `${API_BASE_URL}${path}`;
+    }
+
+    function setFeedback(msg, isError = false, isSuccess = false) {
+      feedbackMsg.textContent = msg;
+      feedbackMsg.className = 'feedback';
+      if (isError) feedbackMsg.classList.add('error');
+      if (isSuccess) feedbackMsg.classList.add('success');
+    }
+  </script>
+</body>
+</html>
